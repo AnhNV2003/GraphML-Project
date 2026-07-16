@@ -1,0 +1,20 @@
+services:
+  gnn-recommendation:
+    build: .
+    image: gnn-recommendation:latest
+    volumes:
+      # Dataset and results live outside the image so they survive rebuilds
+      # and don't bloat the image (assets/data/ can be several GB).
+      - ./assets/data:/app/assets/data
+      - ./results:/app/results
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - PYTHON=python
+    stdin_open: true
+    tty: true

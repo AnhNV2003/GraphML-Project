@@ -1,0 +1,19 @@
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Assistant/agent tooling config, not part of the project
+.claude/
+.codex/
+.agents/
+
+# Large local datasets (fetch via install_dataset_huggingface.py / README instructions)
+assets/data/
+
+# Vendored reference implementations of the 5 SOTA models (fetched by
+# gnn_recommendation/official.py or cloned manually per README)
+assets/external_repos/
+
+results/logs/
+results/tune/

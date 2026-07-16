@@ -1,0 +1,5 @@
+dataset,stage,min_interactions,n_users,n_items,n_interactions,sparsity
+amazon_beauty_raw,before_kcore,2,631986,112565,701528,0.9999901386998831
+amazon_beauty_raw,after_kcore,2,23137,12625,58148,0.999800934339879
+movielens_1m,before_kcore,2,6040,3706,1000209,0.9553163743776871
+movielens_1m,after_kcore,2,6040,3592,1000095,0.9539034959955162
