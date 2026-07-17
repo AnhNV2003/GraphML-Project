@@ -43,7 +43,7 @@ def prepare_dataset(
         print(f"[{dataset_name}] Reusing cached preprocessed data/graph for {cache_key}")
         return _PREPARED_DATASET_CACHE[cache_key]
 
-    data, is_real = load_dataset_by_name(dataset_name)
+    data = load_dataset_by_name(dataset_name)
     data_filtered, _, _, n_users, n_items = preprocess(
         data,
         min_interactions=min_interactions,
@@ -81,7 +81,6 @@ def prepare_dataset(
         graph,
         n_users,
         n_items,
-        is_real,
     )
     _PREPARED_DATASET_CACHE[cache_key] = prepared
     return prepared
@@ -137,7 +136,7 @@ def run_full_pipeline(
     world.seed = seed
     set_global_seed(seed)
 
-    _, train_df, train_pairs, valid_pairs, test_pairs, graph, n_users, n_items, is_real = prepare_dataset(
+    _, train_df, train_pairs, valid_pairs, test_pairs, graph, n_users, n_items = prepare_dataset(
         dataset_name,
         min_interactions=min_interactions,
         positive_threshold=positive_threshold,
@@ -228,7 +227,6 @@ def run_full_pipeline(
     for col in results_df.columns:
         if col != "device":
             results_df[col] = pd.to_numeric(results_df[col], errors="coerce")
-    results_df["is_real_data"] = is_real
     results_df["seed"] = seed
     return results_df
 
@@ -258,7 +256,7 @@ def run_multi_dataset(
     raw_path = output_csv.replace(".csv", "_raw.csv")
     raw.to_csv(raw_path)
     numeric = raw.select_dtypes(include="number").drop(
-        columns=[col for col in ("seed", "is_real_data") if col in raw.columns],
+        columns=[col for col in ("seed",) if col in raw.columns],
         errors="ignore",
     )
     grouped = numeric.groupby(level=["dataset", "model"])

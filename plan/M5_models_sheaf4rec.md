@@ -1,130 +1,142 @@
-# M5 — Models: Popularity baseline + Sheaf4Rec thật + expressiveness
+# M5 — Models: 5 model chuẩn + Sheaf4Rec expressiveness study + model phụ
 
-Trọng tâm khoa học. Mọi model theo API `BPRModelBase` trong
-[extra_models.py](../gnn_recommendation/extra_models.py) để tái dùng `Procedure`/`utils`.
+Trọng tâm khoa học. Mọi model theo API `BPRModelBase`
+([model_base.py](../gnn_recommendation/model_base.py)): `forward() -> (user_emb, item_emb)`,
+`bpr_loss(users, pos, neg)`, `getUsersRating(users)` — để tái dùng `Procedure`/`utils` của
+LightGCN-PyTorch (train loop, BPR loss, sampling) cho **mọi** model không phân biệt nguồn gốc.
 
-## 5.1 Popularity baseline (Table 1 proposal — bắt buộc)
+## 5.1 Bảng chính: 5 model đồ thị chuẩn
 
-Không cá nhân hoá: mọi user nhận cùng top-K item phổ biến nhất. Thêm `PopularityRec` vào
-`extra_models.py`, **không train**:
+| Model | Registry key | File | Paper |
+|---|---|---|---|
+| LightGCN | `LightGCN` | import trực tiếp từ `assets/external_repos/LightGCN-PyTorch` (qua `official.py`) | He et al., SIGIR'20 |
+| NGCF | `NGCF` | [extra_models.py](../gnn_recommendation/extra_models.py) (`NGCFRec`) | Wang et al., SIGIR'19 |
+| Sheaf4Rec | `Sheaf4Rec-official` | [sheaf_official.py](../gnn_recommendation/sheaf_official.py) | Purificato et al., ACM TORS'23/25 |
+| NCL | `NCL` | [ssl_models.py](../gnn_recommendation/ssl_models.py) (`NCLRec`) | Lin et al., WWW'22 |
+| DirectAU | `DirectAU` | [ssl_models.py](../gnn_recommendation/ssl_models.py) (`DirectAURec`) | Wang et al., KDD'22 |
 
-```python
-class PopularityRec(BPRModelBase):
-    def __init__(self, config, dataset):
-        super().__init__()
-        counts = np.zeros(dataset.m_items)
-        for pos in dataset.allPos:
-            counts[pos] += 1
-        self.item_score = nn.Parameter(torch.tensor(counts, dtype=torch.float32),
-                                        requires_grad=False)
-    def getUsersRating(self, users):
-        return self.item_score.unsqueeze(0).expand(len(users), -1)
-```
+`experiments/common.py:FIVE_MODELS` giữ danh sách này làm mặc định của `--models` cho mọi
+script E0-E4. Mỗi model đã được **verify đối chiếu repo gốc** trong
+`assets/external_repos/` (vendor: `LightGCN-PyTorch`, `NGCF-PyTorch-official`,
+`Sheaf4Rec-official`, `SELFRec-official` cho NCL/DirectAU) trước khi coi là kết quả chính
+thức — xem chi tiết kiến trúc từng model bên dưới.
 
-Pipeline cần cờ `trainable=False` → bỏ vòng `train_bpr_model`, chỉ evaluate. Đây là "sàn" để
-chứng minh các model khác thật sự cá nhân hoá.
+### LightGCN
 
-## 5.2 Sheaf4Rec thật — file mới `gnn_recommendation/sheaf.py`
+Import **trực tiếp** từ repo gốc `gusye1234/LightGCN-PyTorch` (không port lại) — đây là
+model **duy nhất** trong dự án chạy code gốc y hệt tại runtime, qua
+`gnn_recommendation/official.py:load_official_modules()`. Propagation: `D^{-1/2} A D^{-1/2}`,
+mean-pool qua các lớp.
 
-Tham chiếu: Sheaf4Rec (Purificato et al., TORS 2025) + Neural Sheaf Diffusion (Bodnar et al.,
-NeurIPS 2022; official code `twitter-research/neural-sheaf-diffusion` cho Laplacian builder +
-sheaf learner).
+### NGCF (`extra_models.py:NGCFRec`)
 
-### Cấu trúc
+Port trung thành từ `huangtinglin/NGCF-PyTorch` (reference PyTorch de facto cho NGCF gốc
+TensorFlow). Khác LightGCN ở 3 điểm:
 
-Graph bipartite `G=(U∪I,E)`, stalk dim `d`:
-- Node `v` mang stalk `x_v ∈ R^d` (0-cochain); embedding table `Ψ` `(n_nodes, d)`, init normal 0.1.
-- Cạnh `e=(u,i)`: restriction maps `F_{u◁e}, F_{i◁e} ∈ R^{d×d}`.
-- Co-boundary: `δ(x)_e = F_{i◁e} x_i − F_{u◁e} x_u` (eq. 5).
-- Sheaf Laplacian: `L_F = δ^T δ`, `Δ_F = D^{-1/2} L_F D^{-1/2}` (eq. 6).
-- Diffusion layer (eq. 7): `X ← X − σ( Δ_F (I⊗W1) X W2 )`, `W1∈R^{d×d}`, `W2∈R^{f×f}`
-  (mặc định `f=1` → bỏ `W2`).
+- Chuẩn hóa **`D^{-1}(A+I)`** (mean-normalized, self-loop) — không phải `D^{-1/2} A D^{-1/2}`.
+- Mỗi lớp có **`W_gc`/`W_bi` học riêng** + `leaky_relu` + L2-normalize, không chỉ nhân
+  adjacency thuần túy như LightGCN.
+- Đọc ra bằng **concat** qua các lớp (`dim = latent_dim * (n_layers + 1)`), không mean-pool.
 
-### Sheaf learner + expressiveness `(N,1)/(1,N)/(N,N)`
+### Sheaf4Rec (`sheaf_official.py:Sheaf4RecOfficial`)
 
-`F_{v◁e} = Φ([x_v ; x_w])` với `Φ` MLP nhỏ trả ma trận `d×d`. Cấu hình qua `restriction_type`:
+Port trung thành từ `antoniopurificato/Sheaf4Rec` (`models.py: SheafConvLayer + RecSysGNN`).
+Đây là bản dùng cho **bảng so sánh chính** (registry key `Sheaf4Rec-official`), khác với bản
+tự viết `sheaf.py` (dùng riêng cho E3 expressiveness study, xem 5.3).
 
-| nhãn (proposal) | `restriction_type` | Dạng restriction map |
-|---|---|---|
-| **GCN-like `(N,1)`** | `scalar` | vô hướng × `I_d` (sheaf trivial → diffusion chuẩn) |
-| trung gian | `diagonal` | ma trận đường chéo `d` tham số |
-| **GAT-like `(1,N)`** | `attention` | vô hướng phụ thuộc cả 2 node (giống attention) |
-| **full sheaf `(N,N)`** | `general` | ma trận `d×d` đầy đủ — main model |
+Kiến trúc (đúng công thức gốc, không đơn giản hóa):
 
-> Ký hiệu `(N,1)/(1,N)/(N,N)` = độ phong phú của restriction map. Expose 3 nhãn
-> `gcn_like / gat_like / full_sheaf`. **Đối chiếu công thức chính xác trong paper Sheaf4Rec khi
-> code** (mục verify M5).
+- **Restriction map vô hướng** (scalar, không phải ma trận `d×d`): `sheaf_learner =
+  Linear(2*latent_dim, 1, bias=False)` rồi `tanh`.
+- **Sheaf Laplacian `n×n`** (không phải block `n·d × n·d`) — vì restriction map là scalar.
+- Chuẩn hóa đối xứng `(deg + 1)^{-1/2}` với **self-loop ngầm** (`+1` trong công thức).
+- Mỗi lớp dùng chung 1 `linear` map; diffusion: `x ← x − step_size · L @ linear(x)`.
+- Đọc ra bằng **concat** qua các lớp (giống công thức gốc `RecSysGNN`).
 
-> **⚠ Verify finding (đo khi kiểm M5) — cần sửa trước E3 (M7):** implementation hiện tại cho
-> `gcn_like` và `gat_like` **cùng cấu trúc** (đều out_dim=1 → scalar × I_d, 81 params như nhau),
-> chỉ khác activation (softplus vs sigmoid) → thực chất chỉ có **2 nấc** (scalar vs full), không
-> phải 3 như proposal cần. Để E3 có 3 nấc thật:
-> - **`gcn_like` (N,1) = restriction CỐ ĐỊNH identity, KHÔNG học** (bỏ qua `RestrictionLearner`)
->   → Δ_F rút về graph Laplacian chuẩn = "không có cấu trúc sheaf" (đúng nghĩa GCN reduction).
-> - **`gat_like` (1,N) = scalar học per-edge** (attention hiện tại) — giữ.
-> - **`full_sheaf` (N,N) = ma trận d×d học** — giữ.
-> Không sửa thì E3 vẫn chạy nhưng chỉ chứng minh được "scalar < full", **không** tách được
-> GCN-reduction vs GAT-reduction như proposal tuyên bố.
+### NCL (`ssl_models.py:NCLRec`)
 
-### Triển khai sparse
+Port từ `RUCAIBox/NCL` (qua framework `Coder-Yu/SELFRec`, vendor tại
+`assets/external_repos/SELFRec-official/model/graph/NCL.py`). Dùng chung encoder
+LightGCN-style (`_LightGCNBase`), cộng thêm 2 loss self-supervised:
 
-Xây `Δ_F` dạng block sparse `(n_nodes·d, n_nodes·d)`: mỗi cạnh đóng góp block `d×d`
-`F_u^T F_u`, `F_i^T F_i` (chéo), `−F_u^T F_i`, `−F_i^T F_u` (off-diag); chuẩn hoá `D^{-1/2}`
-theo block-degree; nhân `Δ_F @ X` bằng `torch.sparse`. Bộ nhớ ~`d²·|E|` → bắt đầu `d∈{2,3,4}`.
-Graph bipartite thuần không tương thích trực tiếp → dùng projection giữ tính sheaf, thực hành
-xây trên graph đối xứng hoá của M4.
+- **Structural neighbor SSL**: so khớp embedding node với embedding của chính nó sau
+  `hyper_layers` bước lan truyền (structure-aware contrastive).
+- **ProtoNCE**: cluster user/item embedding bằng `sklearn.cluster.MiniBatchKMeans` (thay
+  `faiss.Kmeans` gốc, không có GPU faiss trong môi trường này), kéo embedding gần centroid
+  cùng cluster.
 
-### API model
+> **Hành vi cần lưu ý khi đọc log ngắn (`--quick`, 1-2 epoch)**: `_maybe_e_step()` chỉ bắt
+> đầu chạy k-means sau `warmup_epochs=20` (mặc định). Nếu tổng số epoch train ít hơn
+> warmup, `_user_centroids` luôn `None` và **ProtoNCE loss không bao giờ kích hoạt** — NCL
+> lúc đó chỉ còn structural SSL + BPR, không phản ánh đúng hành vi đầy đủ của model. Không
+> phải bug, nhưng cần epoch đủ dài (như trong `train.sh`, `EPOCHS_MAIN=100`) để NCL chạy
+> đúng thiết kế.
 
-```python
-class Sheaf4Rec(BPRModelBase):
-    def forward(self):
-        X = self.embedding.weight.view(n_nodes, d)
-        for _ in range(self.n_layers):
-            L = self._build_sheaf_laplacian(X)     # sheaf learner phụ thuộc X
-            X = X - sigma(L @ (X @ self.W1))        # eq.7 rút gọn (f=1)
-        users, items = split(pool(X))               # (n_users,d), (n_items,d)
-        return users, items                         # score = users @ items.T (eq.3)
-```
+### DirectAU (`ssl_models.py:DirectAURec`)
 
-`getUsersRating`, `bpr_loss` kế thừa `BPRModelBase`.
+Port từ `THUwangcy/DirectAU` (qua SELFRec). Đây là model **duy nhất trong 5 model không
+dùng BPR/negative sampling** — thay bằng 2 thành phần loss trực tiếp trên embedding dương:
 
-### Config (`config.py` / `make_config`)
+- **Alignment**: khoảng cách L2 bình phương giữa user và item embedding tương ứng (càng
+  gần nhau càng tốt).
+- **Uniformity**: đẩy embedding phân bố đều trên siêu cầu (tránh collapse).
 
 ```python
-"sheaf_stalk_dim": 4, "sheaf_n_layers": 3,
-"sheaf_restriction_type": "general",   # gcn_like | gat_like | full_sheaf
-"sheaf_dropout": 0.0,
+def bpr_loss(self, users, pos, neg):   # `neg` không dùng — không cần sampling âm
+    align = self._alignment(user_emb[users], item_emb[pos])
+    uniform = self.gamma * (self._uniformity(user_emb[users]) + self._uniformity(item_emb[pos])) / 2
+    return align + uniform, ...
 ```
 
-## 5.3 Dọn `extra_models.py`
+## 5.2 Model phụ (không nằm trong `FIVE_MODELS`, chạy qua stage riêng của `train.sh`)
 
-- Giữ `NGCF` ("standard GNN" trong proposal), `GAT` (optional, cần torch-geometric).
-- Bỏ/đổi tên `SheafDiffusionRec` cũ → thay bằng `Sheaf4Rec(restriction_type="scalar")`.
-- `UltraGCN`, `PureMF`: phụ, để sau cờ `--extra-models`; **không** thay Popularity.
+| Model | Registry key | Stage `train.sh` | Ghi chú |
+|---|---|---|---|
+| Popularity | `Popularity` | không có stage riêng — cần gọi thủ công `--models Popularity,...` | Non-personalized, `trainable=False`, không train |
+| PureMF | `PureMF` | `bash train.sh puremf` | Import trực tiếp từ `LightGCN-PyTorch` gốc, không port lại |
+| MF + TAG-CF | `MF`, `MF+TAG-CF` | `bash train.sh tagcf` | Test-time message passing (xem M7) |
+| SGL, SimGCL, LightGCL | `SGL`, `SimGCL`, `LightGCL` | `bash train.sh sota` (cùng NCL/DirectAU) | Cùng họ self-supervised, dùng chung encoder `_LightGCNBase` |
+| GAT | `GAT` | tùy chọn `include_gat` | Cần `torch-geometric`; optional qua `--no-gat` |
+| UltraGCN-stub | `UltraGCN-stub` | `include_auxiliary=True` | **KHÔNG phải UltraGCN thật** — xem cảnh báo dưới |
 
-## 5.4 Model set cho bảng chính
+> **Cảnh báo `UltraGCN-stub`** (`extra_models.py:MFStubRec`): đây chỉ là matrix
+> factorization thuần (forward trả thẳng embedding, không có graph propagation, không có
+> loss đặc trưng của UltraGCN như beta-score negative weighting hay item-item constraint).
+> Registry key cố tình đặt `UltraGCN-stub` (không phải `UltraGCN`) để không ai nhầm số liệu
+> này với UltraGCN thật khi đọc bảng kết quả.
 
-| Nhóm | Model | Bắt buộc |
-|---|---|---|
-| Non-personalized | Popularity | ✅ |
-| Graph recommender | LightGCN | ✅ |
-| Standard GNN | NGCF (+GAT nếu có PyG) | ✅ |
-| Sheaf (main) | Sheaf4Rec `full_sheaf` | ✅ |
-| Sheaf ablation | Sheaf4Rec `gcn_like`, `gat_like` | ✅ (M7 expressiveness) |
-| MF (phụ) | PureMF | tuỳ |
+## 5.3 Sheaf4Rec expressiveness study — bản tự viết (`sheaf.py`)
+
+Riêng cho **E3** (xem M7), *không* dùng cho bảng so sánh chính (bảng chính dùng
+`Sheaf4Rec-official`). Mục tiêu: so sánh 3 mức độ phức tạp của restriction map trên cùng
+1 kiến trúc diffusion tự viết.
+
+| Registry key | `restriction_type` | Số tham số (stalk_dim=4) | Ý nghĩa |
+|---|---|---|---|
+| `Sheaf4Rec-gcn_like` | `identity` (alias `gcn_like`) | **0** — cố định `I_d`, không học | Sheaf trivial → diffusion rút về graph Laplacian chuẩn (tương đương GCN) |
+| `Sheaf4Rec-gat_like` | `attention` (alias `gat_like`) | **81** — vô hướng học theo từng cạnh | Giống cơ chế attention |
+| `Sheaf4Rec-full_sheaf` | `general` (alias `full_sheaf`) | **216** — ma trận `d×d` đầy đủ | Sheaf đầy đủ, biểu đạt mạnh nhất |
+
+```python
+RESTRICTION_ALIASES = {
+    "gcn_like": "identity",   # 0 params, fixed I_d
+    "gat_like": "attention",  # scalar learned per edge
+    "full_sheaf": "general",  # full d x d learned matrix
+}
+```
+
+Sheaf Laplacian dựng dạng **block sparse** `(n_nodes·d, n_nodes·d)`: mỗi cạnh đóng góp
+block `d×d` (`F_u^T F_u`, `F_i^T F_i` chéo; `−F_u^T F_i`, `−F_i^T F_u` off-diagonal), lan
+truyền qua `_sheaf_diffuse` bằng scatter-add trực tiếp trên cạnh (không dựng dense
+Laplacian) — tránh OOM (bản dựng dense từng gây ~26GB/layer/pass, đã fix bằng cách này).
 
 ## Checklist M5
 
-- [x] `PopularityRec` + nhánh no-train trong pipeline.
-- [x] `sheaf.py`: stalk embedding, sheaf learner (MLP→restriction), sparse sheaf Laplacian, eq.7.
-- [x] 3 biến thể `gcn_like / gat_like / full_sheaf`.
-- [x] Config keys stalk_dim / n_layers / restriction_type.
-- [ ] **Verify**: đối chiếu Sheaf4Rec + NSD; overfit 1 batch để chắc gradient chảy; Sheaf ≥ Popularity.
-  - Done: toy full_sheaf overfit loss `0.689611 -> 0.001921`.
-  - Deferred to M7: Sheaf ≥ Popularity needs enough epochs/hyperparameter runs, not a 1-epoch smoke.
-- [x] Gỡ/đổi tên `SheafDiffusionRec` cũ; cập nhật `build_extra_models`.
-- [x] **(xong, trước E3)** `gcn_like` → `identity` type: 0 learnable params, fixed I_d.
-  3 nấc thật sự: gcn_like=0, gat_like=81, full_sheaf=216 params (với stalk_dim=4).
-  Đồng thời: thay `_build_sheaf_laplacian + torch.sparse.mm` bằng `_sheaf_diffuse` dùng
-  scatter-add trực tiếp → tránh dense gradient O(n_nodes²·d²) = ~26 GB/layer/pass.
+- [x] LightGCN: import trực tiếp từ LightGCN-PyTorch gốc.
+- [x] NGCF: port trung thành từ `huangtinglin/NGCF-PyTorch`, verify chuẩn hóa/depth/readout.
+- [x] Sheaf4Rec-official: port trung thành từ `antoniopurificato/Sheaf4Rec`.
+- [x] NCL, DirectAU: port từ SELFRec, verify công thức loss.
+- [x] Model phụ: Popularity, PureMF, MF+TAG-CF, SGL/SimGCL/LightGCL, GAT, UltraGCN-stub.
+- [x] `sheaf.py`: 3 biến thể `gcn_like`(0 params)/`gat_like`(81)/`full_sheaf`(216) cho E3.
+- [x] Mọi model đăng ký qua `build_all_models`/`build_extra_models`, dùng chung
+      `train_bpr_model`/`evaluate_official` (M6).

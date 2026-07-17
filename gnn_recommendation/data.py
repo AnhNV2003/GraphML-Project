@@ -1,4 +1,4 @@
-"""Dataset loaders and synthetic fallbacks."""
+"""Dataset loaders."""
 
 import io
 import urllib.request
@@ -6,38 +6,9 @@ import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
-from .config import DATA_ROOT, SEED
-
-
-def generate_synthetic(
-    n_users: int,
-    n_items: int,
-    n_interactions: int,
-    seed: int = SEED,
-) -> pd.DataFrame:
-    """Generate long-tail implicit-feedback-like data for offline smoke tests."""
-    rng = np.random.default_rng(seed)
-    item_popularity = rng.zipf(a=1.6, size=n_items).astype(float)
-    item_popularity /= item_popularity.sum()
-    user_activity = rng.zipf(a=1.8, size=n_users).astype(float)
-    user_activity /= user_activity.sum()
-
-    users = rng.choice(n_users, size=n_interactions, p=user_activity)
-    items = rng.choice(n_items, size=n_interactions, p=item_popularity)
-    ratings = rng.integers(1, 6, size=n_interactions)
-    timestamps = rng.integers(1_600_000_000, 1_700_000_000, size=n_interactions)
-
-    return pd.DataFrame(
-        {
-            "user_id": [f"U{u}" for u in users],
-            "item_id": [f"I{i}" for i in items],
-            "rating": ratings,
-            "timestamp": timestamps,
-        }
-    )
+from .config import DATA_ROOT
 
 
 def _standardize_interactions(df: pd.DataFrame) -> pd.DataFrame:
@@ -165,7 +136,6 @@ DATASET_REGISTRY: dict[str, dict[str, str | Callable[[], pd.DataFrame]]] = {
         "benchmark_dir": amazon_benchmark_dir(),
         "benchmark_core": "5core",
         "benchmark_split": "timestamp",
-        "synthetic": lambda: generate_synthetic(2000, 800, 30000),
     },
     "amazon_video_games": {
         "display_name": "Amazon Video Games",
@@ -174,25 +144,16 @@ DATASET_REGISTRY: dict[str, dict[str, str | Callable[[], pd.DataFrame]]] = {
         "benchmark_dir": amazon_benchmark_dir(),
         "benchmark_core": "5core",
         "benchmark_split": "timestamp",
-        "synthetic": lambda: generate_synthetic(6000, 3000, 100000),
     },
     "movielens_1m": {
         "display_name": "MovieLens 1M",
         "loader": load_movielens_1m_real,
-        "synthetic": lambda: generate_synthetic(6040, 3900, 100000),
     },
 }
 
 
-def load_dataset_by_name(name: str) -> tuple[pd.DataFrame, bool]:
+def load_dataset_by_name(name: str) -> pd.DataFrame:
     cfg = DATASET_REGISTRY[name]
-    try:
-        df = cfg["loader"]()
-        print(f"[{name}] Loaded real data, shape = {df.shape}")
-        return df, True
-    except Exception as exc:
-        print(f"[{name}] Could not load real data ({type(exc).__name__}: {exc}).")
-        print(f"[{name}] Using synthetic fallback for pipeline validation.")
-        df = cfg["synthetic"]()
-        print(f"[{name}] Synthetic data shape = {df.shape}")
-        return df, False
+    df = cfg["loader"]()
+    print(f"[{name}] Loaded real data, shape = {df.shape}")
+    return df

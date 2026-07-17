@@ -241,19 +241,8 @@ Các cột trên được chuyển thành những cấu trúc sau để train/ev
 
 Sau M5, các model sheaf dùng graph này để dựng sparse block sheaf Laplacian. `Sheaf4Rec-gcn_like` dùng scalar restriction map, `Sheaf4Rec-gat_like` dùng scalar attention-like restriction map, và `Sheaf4Rec-full_sheaf` dùng restriction map đầy đủ `d x d`.
 
-## 5. Synthetic fallback
+## 5. Không có synthetic fallback
 
-Nếu local file bị thiếu hoặc loader không đọc được dữ liệu thật, project tự sinh synthetic fallback với cùng schema:
-
-```text
-user_id, item_id, rating, timestamp
-```
-
-| Cột | Mô tả |
-|---|---|
-| `user_id` | ID giả dạng `U{number}`. |
-| `item_id` | ID giả dạng `I{number}`. |
-| `rating` | Rating giả trong thang 1-5. |
-| `timestamp` | Timestamp giả trong khoảng Unix timestamp cố định. |
-
-Kết quả chạy trên synthetic fallback chỉ dùng để kiểm tra pipeline, không nên dùng làm số liệu báo cáo.
+Nếu local file bị thiếu hoặc loader không đọc được dữ liệu thật, pipeline ném
+`FileNotFoundError` thẳng thay vì tự sinh dữ liệu giả — tải dữ liệu thật trước khi chạy
+training (xem `install_dataset_huggingface.py` ở M1).

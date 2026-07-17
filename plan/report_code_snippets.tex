@@ -1,0 +1,132 @@
+% Code snippets for the project report (Writing: Code snippets, 4 points).
+% Requires \usepackage{listings} (or \usepackage{minted}) in the preamble.
+% Each snippet is trimmed to its core logic; see the cited file for the full version.
+
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  language=Python,
+}
+
+% =====================================================================
+% #1 LightGCN -- propagation baseline every other model builds on / departs from.
+% Source: assets/external_repos/LightGCN-PyTorch/code/model.py (computer(), trimmed)
+% =====================================================================
+\begin{lstlisting}[caption={LightGCN propagation: symmetric-normalized message passing with mean read-out over layers (He et al., SIGIR'20).}, label={lst:lightgcn}]
+def computer(self):
+    users_emb = self.embedding_user.weight
+    items_emb = self.embedding_item.weight
+    all_emb = torch.cat([users_emb, items_emb])
+    embs = [all_emb]
+    g = self.Graph  # D^{-1/2} (A) D^{-1/2}, sparse bipartite adjacency
+
+    for layer in range(self.n_layers):
+        all_emb = torch.sparse.mm(g, all_emb)
+        embs.append(all_emb)
+
+    embs = torch.stack(embs, dim=1)
+    light_out = torch.mean(embs, dim=1)  # mean-pool read-out (no learned weights)
+    users, items = torch.split(light_out, [self.num_users, self.num_items])
+    return users, items
+\end{lstlisting}
+
+% =====================================================================
+% #2 Sheaf4Rec -- restriction maps + sheaf diffusion (the project's core contribution).
+% Source: gnn_recommendation/sheaf_official.py (SheafConvLayerOfficial, trimmed)
+% =====================================================================
+\begin{lstlisting}[caption={Sheaf4Rec: a learned scalar restriction map per edge builds a normalized sheaf Laplacian, then diffuses node features through it (Purificato et al., ACM TORS'23/25).}, label={lst:sheaf4rec}]
+def predict_restriction_maps(self, x):
+    row, col = self.edge_index
+    x_row, x_col = x[row], x[col]
+    maps = self.sheaf_learner(torch.cat([x_row, x_col], dim=1))
+    return torch.tanh(maps)  # scalar restriction map per directed edge
+
+def build_laplacian(self, maps):
+    row, col = self.edge_index
+    left, right = maps[self.left_idx], maps[self.right_idx]
+    non_diag = -left * right
+    diag = torch.zeros(self.num_nodes, 1, device=maps.device)
+    diag = diag.index_add(0, row, maps ** 2)
+
+    d_sqrt_inv = (diag + 1).pow(-0.5)          # implicit self-loop, deg+1 normalization
+    norm_maps = d_sqrt_inv[row] * non_diag * d_sqrt_inv[col]
+    diag_norm = d_sqrt_inv * diag * d_sqrt_inv
+    # assemble sparse (num_nodes x num_nodes) normalized sheaf Laplacian
+    return torch.sparse_coo_tensor(..., torch.cat([diag_norm.view(-1), norm_maps.view(-1)]))
+
+def forward(self, x):
+    laplacian = self.build_laplacian(self.predict_restriction_maps(x))
+    y = self.linear(x)
+    return x - self.step_size * torch.sparse.mm(laplacian, y)  # diffusion step
+\end{lstlisting}
+
+% =====================================================================
+% #3 NGCF -- element-wise interaction term + per-layer weights + concat read-out.
+% Source: gnn_recommendation/extra_models.py (NGCFRec.forward, verbatim)
+% =====================================================================
+\begin{lstlisting}[caption={NGCF: unlike LightGCN, each layer has its own learned $W_{gc}$/$W_{bi}$, an explicit element-wise interaction term $\mathrm{ego} \odot \mathrm{side}$, and layers are concatenated (not averaged) at read-out (Wang et al., SIGIR'19).}, label={lst:ngcf}]
+def forward(self):
+    adj = torch.sparse_coo_tensor(
+        self.adj_indices, self.adj_values, (self.n_nodes, self.n_nodes)
+    ).coalesce()
+    ego = torch.cat([self.embedding_user.weight, self.embedding_item.weight], dim=0)
+    all_embeddings = [ego]
+    for k in range(self.n_layers):
+        side = torch.sparse.mm(adj, ego)
+        sum_emb = self.W_gc[k](side)
+        bi_emb = self.W_bi[k](ego * side)          # element-wise interaction term
+        ego = F.leaky_relu(sum_emb + bi_emb, negative_slope=0.2)
+        ego = F.normalize(ego, p=2, dim=1)
+        all_embeddings.append(ego)
+    out = torch.cat(all_embeddings, dim=1)         # concat read-out, not mean-pool
+    return torch.split(out, [self.n_user, self.m_item])
+\end{lstlisting}
+
+% =====================================================================
+% #4 DirectAU -- the only one of the 5 models that replaces BPR entirely
+% (alignment + uniformity loss, no negative sampling).
+% Source: gnn_recommendation/ssl_models.py (DirectAURec, verbatim)
+% =====================================================================
+\begin{lstlisting}[caption={DirectAU: trains with alignment + uniformity instead of BPR -- no negative sampling is needed at all (Wang et al., KDD'22).}, label={lst:directau}]
+@staticmethod
+def _alignment(x, y):
+    x, y = F.normalize(x, dim=-1), F.normalize(y, dim=-1)
+    return (x - y).norm(p=2, dim=1).pow(2).mean()
+
+@staticmethod
+def _uniformity(x, t=2.0):
+    x = F.normalize(x, dim=-1)
+    return torch.pdist(x, p=2).pow(2).mul(-t).exp().mean().log()
+
+def bpr_loss(self, users, pos, neg):       # `neg` is unused -- no negatives needed
+    user_emb, item_emb = self.forward()
+    u, p = user_emb[users], item_emb[pos]
+    align = self._alignment(u, p)
+    uniform = self.gamma * (self._uniformity(u) + self._uniformity(p)) / 2
+    return align + uniform, torch.zeros((), device=align.device)
+\end{lstlisting}
+
+% =====================================================================
+% #5 Global timestamp split -- the evaluation protocol used across all experiments,
+% and the reason test metrics run lower than validation (higher cold-start rate).
+% Source: gnn_recommendation/preprocessing.py (global_timestamp_split, verbatim)
+% =====================================================================
+\begin{lstlisting}[caption={Global timestamp split: a single cutoff pair $(t_1, t_2)$ is applied across every user (Amazon Reviews 2023 benchmark style), unlike a per-user leave-one-out split.}, label={lst:split}]
+def global_timestamp_split(data, t1, t2):
+    # train = timestamp < t1, valid = [t1, t2), test = timestamp >= t2
+    train_rows = data[data["timestamp"] < t1]
+    valid_rows = data[(data["timestamp"] >= t1) & (data["timestamp"] < t2)]
+    test_rows  = data[data["timestamp"] >= t2]
+    # Users whose entire history falls after t1 get zero train interactions --
+    # an intentional cold-start property of this split, not a bug.
+    return train_rows.reset_index(drop=True), pairs_from_frame(valid_rows), pairs_from_frame(test_rows)
+\end{lstlisting}

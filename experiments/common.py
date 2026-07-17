@@ -68,7 +68,7 @@ def ensure_dirs() -> None:
 
 def summarize_mean_std(raw: pd.DataFrame, metrics=("Recall@10", "NDCG@10")) -> pd.DataFrame:
     numeric = raw.select_dtypes(include="number").drop(
-        columns=[col for col in ("seed", "is_real_data") if col in raw.columns],
+        columns=[col for col in ("seed",) if col in raw.columns],
         errors="ignore",
     )
     group_cols = [col for col in ["dataset", "model"] if col in raw.columns]

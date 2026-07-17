@@ -51,7 +51,7 @@ def main():
             world.seed = seed
             utils.set_seed(seed)
 
-            _, train_df, train_pairs, valid_pairs, test_pairs, graph, n_users, n_items, is_real = prepare_dataset(
+            _, train_df, train_pairs, valid_pairs, test_pairs, graph, n_users, n_items = prepare_dataset(
                 dataset_name
             )
             dataset = GraphRecDataset.create(

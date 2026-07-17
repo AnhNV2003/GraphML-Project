@@ -1,43 +1,55 @@
 # M4 — Graph Construction (thay cho "Feature Engineering")
 
 Trong CF + GNN/sheaf không có feature thủ công; "kỹ thuật đặc trưng" thực chất là **cách dựng
-graph và trọng số cạnh**. Đây cũng là "đóng góp riêng" mà proposal muốn thử (rating/time-aware).
+graph và trọng số cạnh**. Đây cũng là đóng góp riêng mà proposal muốn thử (rating/time-aware).
 
-Sửa `gnn_recommendation/graph.py`.
+Code trong `gnn_recommendation/graph.py`.
 
-## 4.1 Đã có (giữ)
+## 4.1 `build_normalized_graph` — graph binary (baseline)
 
-`build_normalized_graph`: dựng adjacency bipartite đối xứng hoá, chuẩn hoá `D^{-1/2} A D^{-1/2}`,
-trả `torch.sparse_coo_tensor`. Đây là edge **binary** — baseline của so sánh.
+Dựng adjacency bipartite đối xứng hóa, chuẩn hóa `D^{-1/2} A D^{-1/2}`, trả về
+`torch.sparse_coo_tensor`. Đây là giao thức chuẩn hóa **dùng chung cho LightGCN, Sheaf4Rec
+(cả bản tự viết `sheaf.py` và bản official `sheaf_official.py` tự xây Laplacian riêng từ
+`allPos`), NCL, DirectAU** — chỉ NGCF dùng chuẩn hóa khác (`D^{-1}(A+I)`, xem M5).
 
-## 4.2 Edge weighting có tham số hoá
+## 4.2 Edge weighting có tham số hóa (`edge_mode`)
 
 ```python
-def build_normalized_graph(n_users, n_items, pairs, device,
-                           edge_weight=None, edge_mode="binary"):
-    # edge_mode: "binary" | "rating" | "time"
-    ...
-    values = edge_weight if edge_weight is not None else np.ones(len(row))
-    # sau đó vẫn D^{-1/2} A D^{-1/2} như cũ, chỉ thay `values`
+def compute_edge_weight(train_df, edge_mode="binary", rating_scale=5.0):
+    if edge_mode == "binary":
+        return None
+    if edge_mode == "rating":
+        return np.clip(train_df["rating"].astype(float).to_numpy() / rating_scale, 1e-8, None)
+    if edge_mode == "time":
+        recency = (timestamps - t_min) / max(t_max - t_min, 1.0)
+        return np.exp(-(1.0 - recency))
 ```
 
-- **binary**: như hiện tại.
-- **rating**: weight = rating chuẩn hoá, ví dụ `rating/5` hoặc `(rating-3)` (dương). Lấy từ
-  `train["rating"]`. Khi thử rating-aware nên đặt `positive_threshold=None` ở M3 để rating còn
-  mang thông tin.
-- **time**: weight tăng theo độ mới, ví dụ `exp(-λ·(t_max - t))` (λ chuẩn hoá theo phạm vi
-  timestamp) hoặc rank-recency trong mỗi user. Nhớ timestamp Amazon là **ms**.
+- **binary**: `edge_weight=None` → mọi cạnh trọng số 1 (mặc định).
+- **rating**: `rating/5.0`, clip dương. Nên đặt `positive_threshold=None` ở M3 khi thử
+  edge_mode này, để rating còn phân biệt được (nếu lọc `rating>=4` trước, mọi cạnh còn lại
+  chỉ còn giá trị 4 hoặc 5 → tín hiệu yếu).
+- **time**: `exp(-(1 - recency))`, recency chuẩn hóa `[0,1]` theo khoảng thời gian của
+  chính train set. Timestamp Amazon là **ms** — không trộn với timestamp giây của
+  MovieLens khi tính `t_min`/`t_max`.
 
-Chuẩn hoá đối xứng giữ nguyên; symmetric hoá phải nhân đôi weight cho cả 2 chiều `(u→i)`, `(i→u)`.
+`build_normalized_graph(..., edge_weight=edge_weight, edge_mode=edge_mode)` nhân đôi
+weight cho cả 2 chiều `(u→i)`, `(i→u)` trước khi chuẩn hóa đối xứng, giữ đúng tính đối
+xứng của graph.
 
 ## 4.3 Kết nối dữ liệu
 
-M3 trả DataFrame train giữ `rating`/`timestamp` → `pipeline`/`experiments` tính `edge_weight`
-tương ứng `edge_mode` rồi truyền vào `build_normalized_graph`. Với Sheaf4Rec (M5), graph này
-là input để dựng sheaf Laplacian.
+M3 trả về DataFrame train giữ nguyên `rating`/`timestamp` → `pipeline.prepare_dataset()`
+tính `edge_weight` tương ứng `edge_mode` rồi truyền vào `build_normalized_graph`. Graph này
+là input chung cho mọi model (kể cả Sheaf4Rec bản tự viết `sheaf.py`, dùng `dataset.Graph`
+để xây sheaf Laplacian).
+
+`experiments/exp_edges.py` (E4, xem M7) sweep `edge_mode ∈ {binary, rating, time}` trên các
+model trong `--models`.
 
 ## Checklist M4
 
 - [x] `edge_mode` = binary | rating | time trong `build_normalized_graph`.
-- [x] Hàm tính `edge_weight` từ train DataFrame (rating & time).
-- [x] Symmetric hoá weight đúng cho 2 chiều.
+- [x] `compute_edge_weight` từ train DataFrame (rating & time).
+- [x] Symmetric hóa weight đúng cho 2 chiều.
+- [x] E4 (`exp_edges.py`) hỗ trợ `--models` để chọn model sweep.

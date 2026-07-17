@@ -1,45 +1,87 @@
-# Plan hoàn thiện project — Sheaf4Rec trên Amazon Reviews 2023 (All Beauty) + MovieLens 1M
-
-Kế hoạch code đưa repo từ scaffold hiện tại lên đúng phạm vi proposal:
+# Plan — Sheaf4Rec vs 4 model đồ thị chuẩn trên Amazon Reviews 2023 + MovieLens 1M
 
 > **Sheaf Neural Networks for E-Commerce Product Recommendation: Applying Sheaf4Rec
-> to Amazon Reviews 2023** (`Formatting_Instructions_For_NeurIPS_2025.pdf`).
+> to Amazon Reviews 2023** (`assets/papers/Formatting_Instructions_For_NeurIPS_2025.pdf`).
 
-Cấu trúc theo **phase ML tuần tự M1–M8** (tailored cho graph ML / recommender research, không
-phải tabular CRISP-DM: "Feature Engineering" được thay bằng "Graph Construction"; phần model +
-evaluation + experiments được tách riêng vì đó là đóng góp khoa học chính).
+Cấu trúc theo **phase tuần tự M1–M8** (tailored cho graph ML / recommender research,
+không phải tabular CRISP-DM: "Feature Engineering" được thay bằng "Graph Construction";
+model + evaluation + experiments tách riêng vì đó là đóng góp khoa học chính).
+
+**Lưu ý khi đọc:** các file M1-M8 dưới đây mô tả trạng thái **hiện tại** của code, không
+phải nhật ký lịch sử. Dự án đã trải qua vài lần đổi hướng lớn so với kế hoạch ban đầu
+(xem mục "Các quyết định thay đổi lớn" bên dưới) — nội dung mỗi phase đã được viết lại
+để khớp code thật, không cần đối chiếu ngược lịch sử git.
 
 ## Phase
 
 | Phase | File | Nội dung |
 |---|---|---|
-| M1 | [M1_problem_and_data.md](M1_problem_and_data.md) | Problem framing + data acquisition (đọc local, registry) |
-| M2 | [M2_eda.md](M2_eda.md) | EDA trên real data, số liệu cho báo cáo, biện minh ngưỡng rating |
-| M3 | [M3_preprocessing.md](M3_preprocessing.md) | Dedup, k-core, ngưỡng `rating≥4`, split train/val/test |
+| M1 | [M1_problem_and_data.md](M1_problem_and_data.md) | Problem framing + 3 dataset (Amazon Beauty, Amazon Video Games, MovieLens 1M) |
+| M2 | [M2_eda.md](M2_eda.md) | EDA trên real data, biện minh k-core/ngưỡng rating |
+| M3 | [M3_preprocessing.md](M3_preprocessing.md) | Dedup, k-core (k=5), ngưỡng `rating≥4`, **global timestamp split** |
 | M4 | [M4_graph_construction.md](M4_graph_construction.md) | Bipartite graph: binary / rating-aware / time-aware edges |
-| M5 | [M5_models_sheaf4rec.md](M5_models_sheaf4rec.md) | Popularity, LightGCN/NGCF, **Sheaf4Rec thật** + expressiveness |
-| M6 | [M6_evaluation_metrics.md](M6_evaluation_metrics.md) | F1@K, MRR@K, NDCG, timing, eval val/test, multi-seed |
-| M7 | [M7_experiments_analysis.md](M7_experiments_analysis.md) | E0 bảng chính + E1–E4 (layer/dim/expressiveness/edge) |
-| M8 | [M8_results_report.md](M8_results_report.md) | Bảng + hình NeurIPS, cập nhật docs |
+| M5 | [M5_models_sheaf4rec.md](M5_models_sheaf4rec.md) | 5 model chuẩn (LightGCN, NGCF, Sheaf4Rec-official, NCL, DirectAU) + model phụ |
+| M6 | [M6_evaluation_metrics.md](M6_evaluation_metrics.md) | Recall/Precision/NDCG/F1/MRR/HitRatio@K, timing, val/test, multi-seed |
+| M7 | [M7_experiments_analysis.md](M7_experiments_analysis.md) | E0 bảng chính + E1–E4 (layer/dim/expressiveness/edge) + SOTA/TAG-CF/PureMF |
+| M8 | [M8_results_report.md](M8_results_report.md) | `train.sh`/`test.sh`, bảng + hình, Docker, báo cáo |
 
-## Dataset (đã tải sẵn local — không cần tải mạng)
+## 5 model chuẩn (trọng tâm so sánh)
 
-- **Amazon Reviews 2023 – All Beauty** (chính):
-  - Raw: `data/amazon_reviews_2023/raw/review_categories/All_Beauty.jsonl` (~700K review).
-  - Meta: `data/amazon_reviews_2023/raw/meta_categories/meta_All_Beauty.jsonl`.
-  - Split chuẩn của tác giả: `data/amazon_reviews_2023/benchmark/{0core,5core}/{last_out,timestamp}/All_Beauty.{train,valid,test}.csv`
-    (cột `user_id, parent_asin, rating, timestamp`; **timestamp mili-giây**).
-- **MovieLens 1M** (phụ): `data/datamovielens-1m/ratings.dat` (`UserID::MovieID::Rating::Timestamp`) + `movies.dat`, `users.dat`.
+| Model | Paper | Venue | Năm |
+|---|---|---|---|
+| LightGCN | He et al. | SIGIR | 2020 |
+| NGCF | Wang et al. | SIGIR | 2019 |
+| Sheaf4Rec | Purificato et al. | ACM TORS | 2023/2025 |
+| NCL | Lin et al. | WWW | 2022 |
+| DirectAU | Wang et al. | KDD | 2022 |
+
+Mỗi model là **faithful port** từ repo gốc của tác giả (vendor trong `assets/external_repos/`),
+không tự ý đơn giản hóa kiến trúc — xem M5 cho chi tiết verify từng model.
+
+## Model phụ (không nằm trong bảng chính, chạy qua stage riêng)
+
+- **Popularity** — baseline non-personalized (top-item phổ biến, không train).
+- **PureMF** — matrix factorization thuần, import trực tiếp từ `LightGCN-PyTorch` gốc.
+- **MF + TAG-CF** — MF + test-time message-passing (Test-time Aggregation for CF).
+- **SGL, SimGCL, LightGCL** — 3 model self-supervised còn lại cùng họ với NCL/DirectAU,
+  dùng chung encoder LightGCN-style, chỉ khác loss.
+- **GAT** (optional, cần `torch-geometric`), **UltraGCN-stub** (MF trơn, KHÔNG phải
+  UltraGCN thật — xem cảnh báo ở M5).
+
+## Dataset
+
+| Dataset | Vai trò | Nguồn local |
+|---|---|---|
+| Amazon Beauty (All Beauty) | Chính | `assets/data/amazon_reviews_2023/raw/review_categories/All_Beauty.jsonl` |
+| Amazon Video Games | Phụ (dataset đậm đặc hơn) | `assets/data/amazon_reviews_2023/raw/review_categories/Video_Games.jsonl` |
+| MovieLens 1M | Phụ | `assets/data/datamovielens-1m/ratings.dat` |
+
+Tải Amazon category bằng `python install_dataset_huggingface.py --category <Tên>`
+(script giữ lại category đã tải trước đó, không ghi đè khi tải category mới).
+MovieLens tự tải từ GroupLens nếu thiếu file local.
+
+## Split protocol: chỉ còn 1 chiến lược — global timestamp split
+
+Toàn bộ pipeline dùng **global timestamp split** (phong cách benchmark chính thức của
+Amazon Reviews 2023): một cặp cutoff `(t1, t2)` áp dụng cho toàn dataset —
+`train = t < t1`, `valid = t1 ≤ t < t2`, `test = t ≥ t2`.
+
+> Chiến lược leave-one-out (per-user relative cut) đã được thử ở giai đoạn đầu dự án
+> nhưng **đã bị loại bỏ hoàn toàn khỏi code** (không còn `leave_one_out_split` trong
+> `preprocessing.py`) để tất cả kết quả trong `results/` nhất quán theo 1 giao thức duy nhất.
 
 ## Definition of done
 
-1. Chạy trên **real data local** (Amazon chính, MovieLens phụ), số báo cáo có `is_real_data=True`.
-2. So sánh 3 tầng model: **Popularity** / **LightGCN**+**NGCF** / **Sheaf4Rec** (sheaf thật).
-3. Đủ metric: Recall/Precision/NDCG/HitRatio/**F1**/**MRR** @K, + **train & inference time**;
+1. Chạy trên **real data local** (không còn synthetic fallback — thiếu data thì báo lỗi
+   thẳng thay vì âm thầm sinh số liệu giả).
+2. Bảng so sánh chính: **5 model chuẩn** (LightGCN, NGCF, Sheaf4Rec-official, NCL, DirectAU)
+   trên Amazon Beauty + MovieLens 1M.
+3. Đủ metric: Recall/Precision/NDCG/HitRatio/F1/MRR @10/@20, + train & inference time;
    số chính là Recall@10, NDCG@10.
-4. Đủ 4 phân tích: sheaf-layer sweep, stalk/latent-dim sweep, expressiveness `(N,1)/(1,N)/(N,N)`,
-   rating/time-aware edges.
-5. Sinh bảng + hình cho báo cáo NeurIPS.
+4. Đủ 4 phân tích ablation: layer sweep (E1), dim sweep (E2), Sheaf4Rec expressiveness (E3),
+   edge-construction (E4) — tất cả hỗ trợ chọn model qua `--models`.
+5. Sinh bảng + hình cho báo cáo qua `train.sh` + `test.sh`.
+6. Đóng gói tái sử dụng qua Docker (`Dockerfile` + `docker-compose.yml`).
 
 ## Thứ tự phụ thuộc
 
@@ -48,37 +90,35 @@ M1 → M2 → M3 → M4 → M5 ┐
                         ├→ M7 → M8
         M6 (song song với M5, xong trước M7)
 ```
-Không sinh số đáng tin trước khi có real data + split (M1–M3) và metric đầy đủ (M6).
-Sheaf4Rec (M5) rủi ro cao nhất → nên có M6 làm khung kiểm thử sẵn.
 
-## Gap chính so với code hiện tại
+## Các quyết định thay đổi lớn so với kế hoạch ban đầu
 
-| Gap | Hiện trạng | Phase |
-|---|---|---|
-| Sheaf4Rec thật (stalk `d`, restriction matrix, sheaf Laplacian) | Chỉ stub scalar `d=1` ([extra_models.py:84](../gnn_recommendation/extra_models.py#L84)) | M5 |
-| Expressiveness `(N,1)/(1,N)/(N,N)` | Không có | M5 |
-| Popularity baseline | Chỉ có PureMF | M5 |
-| Ngưỡng implicit `rating≥4` | Giữ mọi rating | M3 |
-| Validation split | Chỉ train/test | M3 |
-| F1@K, MRR@K, timing | Thiếu | M6 |
-| Chạy real data (đang synthetic) + đọc local | `is_real_data=False`, loader qua URL | M1 |
-| Rating/time-aware edges | Chỉ nhị phân | M4 |
-| Harness 4 phân tích | Không có | M7 |
+| Quyết định | Trước | Sau | Lý do |
+|---|---|---|---|
+| Model trọng tâm | Popularity / LightGCN+NGCF / Sheaf4Rec (3 tầng) | 5 model đồ thị chuẩn có paper riêng (LightGCN, NGCF, Sheaf4Rec, NCL, DirectAU) | Thu hẹp về các model có tính học thuật/canonical rõ ràng, dễ trích dẫn |
+| Split | Leave-one-out (per-user) | Global timestamp split (per-dataset) | Khớp benchmark chính thức Amazon Reviews 2023; LOO đã bị xóa khỏi code |
+| k-core | `MIN_INTERACTIONS=2` | `MIN_INTERACTIONS=5` | Lọc mạnh hơn, giảm nhiễu từ user/item quá thưa |
+| Sheaf4Rec | 1 bản tự viết (`sheaf.py`, 3 biến thể restriction) | Thêm bản port trung thành `sheaf_official.py` (`Sheaf4Rec-official`) dùng cho bảng chính; bản tự viết (`Sheaf4Rec-full_sheaf` etc.) chỉ dùng cho E3 | Đảm bảo số liệu bảng chính khớp kiến trúc gốc trong paper |
+| Model phụ | — | Thêm NCL/DirectAU/SGL/SimGCL/LightGCL (port từ SELFRec), TAG-CF, PureMF | Mở rộng phạm vi so sánh SOTA |
+| Cấu trúc thư mục | `data/`, 6 repo gốc rải ở root | `assets/{data,external_repos,papers,smoke_tests}/` | Tổ chức lại cho dễ tái sử dụng/reproduce |
+| Đóng gói | — | `Dockerfile` (PyTorch+CUDA 12.8), `docker-compose.yml` | Tái sử dụng môi trường dễ dàng |
+| Script train | `run_pipeline.py`, `experiments/run_all.sh` | `train.sh` + `test.sh` (build bảng/biểu đồ cuối) | Gộp thành 1 entry point rõ ràng, có tag chọn model/kịch bản |
+| Dữ liệu thiếu | Tự sinh synthetic (Zipf long-tail), gắn cờ `is_real_data` | Ném `FileNotFoundError` thẳng | Synthetic từng gây crash âm thầm khi trộn đơn vị timestamp; lỗi rõ ràng tốt hơn số liệu giả |
 
 ## Nguyên tắc chung
 
-- **Không phá pipeline hiện tại** — thêm qua flag/option; `run_pipeline.py` vẫn chạy như cũ.
 - **Mọi model theo API `BPRModelBase`** (`forward -> (user_emb,item_emb)`, `bpr_loss`,
   `getUsersRating`) để tái dùng `Procedure`/`utils` của LightGCN-PyTorch.
 - Reproducibility: set seed qua `set_global_seed`, ghi config + `git HEAD` cạnh mỗi kết quả.
-- Tách số thật vs smoke test qua cột `is_real_data`.
+- Mọi kết quả trong `results/` luôn chạy trên real data (không có synthetic fallback).
+- Mỗi model SOTA phải verify đối chiếu repo gốc của tác giả (vendor trong
+  `assets/external_repos/`) trước khi đưa vào bảng so sánh chính.
 
 ## Rủi ro & giảm thiểu
 
 | Rủi ro | Giảm thiểu |
 |---|---|
-| Sheaf Laplacian sparse tốn RAM `d²·|E|` trên MovieLens | Bắt đầu `d≤4`, k-core mạnh hơn; dim lớn chỉ chạy Amazon |
-| All Beauty 5-core nhỏ (~2k train) → số nhiễu | Dùng thêm 0core / raw + k-core vừa phải; báo cáo cả hai |
-| Sheaf4Rec khó khớp paper 100% | Ghi rõ "faithful re-implementation, sai khác X"; đối chiếu NSD official code |
-| torch-geometric khó cài (GAT) | GAT optional (`--no-gat`); NGCF là "standard GNN" thay thế |
-| timestamp Amazon là ms | Xử lý nhất quán, không trộn giây/ms |
+| Global timestamp split gây cold-start (user không có train) | Đây là đặc tính chủ ý của split style, không phải bug — ghi rõ trong báo cáo |
+| GPU dùng chung server, tốc độ dao động (thermal/tranh chấp) | Theo dõi `nvidia-smi` khi train dài; chấp nhận ETA co giãn |
+| `torch-geometric` khó cài (GAT) | GAT optional (`--no-gat`); không nằm trong 5 model chuẩn |
+| timestamp Amazon là ms, MovieLens là s | `AMAZON_GLOBAL_TS_T1/T2` hard-code riêng cho Amazon; dataset khác dùng `quantile_timestamp_cutoffs` tự suy từ đơn vị của chính nó — không trộn lẫn hằng số giữa 2 loại |

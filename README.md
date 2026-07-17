@@ -25,7 +25,7 @@ train.sh, test.sh         # Script train + tổng hợp báo cáo
 | File | Vai trò |
 |---|---|
 | `config.py` | Seed, device, hyperparameter mặc định, đường dẫn `assets/` |
-| `data.py` | Loader Amazon Reviews 2023 (theo category), MovieLens 1M, synthetic fallback |
+| `data.py` | Loader Amazon Reviews 2023 (theo category), MovieLens 1M — luôn real data, không có fallback |
 | `preprocessing.py` | Lọc positive-feedback, k-core filtering, split time-based (global timestamp) |
 | `graph.py` | Dựng bipartite graph chuẩn hóa dạng sparse tensor |
 | `official.py` | Clone/import `LightGCN-PyTorch` gốc, stub module `world`, adapter dataset |
@@ -84,7 +84,7 @@ Dataset thật đọc từ `assets/data/`:
   (script tự giữ lại category đã tải trước đó, không ghi đè khi tải category mới)
 - **MovieLens 1M**: `assets/data/datamovielens-1m/ratings.dat` — tự tải từ GroupLens nếu thiếu file local.
 
-Nếu dữ liệu thật không đọc được, pipeline dùng synthetic fallback (chỉ để kiểm tra pipeline chạy đúng luồng, không dùng làm số liệu báo cáo).
+Nếu dữ liệu thật không đọc được, pipeline báo lỗi (`FileNotFoundError`) thay vì chạy tiếp — không có synthetic fallback. Tải dữ liệu trước khi chạy training.
 
 ## Split protocol
 
