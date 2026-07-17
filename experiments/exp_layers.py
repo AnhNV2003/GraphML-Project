@@ -1,7 +1,7 @@
 """E1: layer-count sweep (n_layers) across the 5 canonical graph models.
 
 Usage:
-  python -m experiments.exp_layers --dataset amazon_beauty --layers 1,2,3,4,5,6,8
+  python -m experiments.exp_layers --dataset amazon_video_games --layers 1,2,3,4,5,6,8
   python -m experiments.exp_layers --models Sheaf4Rec-official,LightGCN
 """
 

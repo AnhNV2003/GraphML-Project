@@ -1,7 +1,7 @@
 """E0: main model comparison table (5 canonical graph models).
 
 Usage:
-  python -m experiments.exp_main --dataset amazon_beauty,movielens_1m --seeds 42,43,44 --epochs 100 --patience 10
+  python -m experiments.exp_main --dataset amazon_video_games,movielens_1m --seeds 42,43,44 --epochs 100 --patience 10
   python -m experiments.exp_main --models LightGCN,NGCF   # subset only
 """
 

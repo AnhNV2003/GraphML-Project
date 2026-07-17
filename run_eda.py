@@ -21,10 +21,33 @@ from gnn_recommendation.eda import (
 )
 
 
+# Nguồn dữ liệu raw cho EDA. slug -> (loader, timestamp_unit).
+RAW_SOURCES = {
+    "amazon_video_games_raw": (lambda: load_amazon_category_raw("Video_Games"), "ms"),
+    "movielens_1m": (load_movielens_1m_real, "s"),
+}
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run M2 EDA on local recommendation datasets.")
     parser.add_argument("--output-dir", default="results")
-    parser.add_argument("--min-interactions", type=int, default=2)
+    parser.add_argument("--min-interactions", type=int, default=5)
+    parser.add_argument(
+        "--datasets",
+        default="amazon_video_games_raw,movielens_1m",
+        help=(
+            "Comma-separated raw dataset slugs to run EDA on. "
+            f"Choices: {', '.join(RAW_SOURCES)}."
+        ),
+    )
+    parser.add_argument(
+        "--benchmark-category",
+        default=None,
+        help=(
+            "Amazon category name to also summarize from the bundled 0core/5core "
+            "timestamp benchmark (e.g. Video_Games). Omit to skip benchmark comparison."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -35,29 +58,28 @@ def main():
     tables_dir = output_dir / "tables"
     tables_dir.mkdir(parents=True, exist_ok=True)
 
-    datasets = {
-        "amazon_beauty_raw": {
-            "data": load_amazon_category_raw("All_Beauty"),
-            "timestamp_unit": "ms",
-        },
-        "movielens_1m": {
-            "data": load_movielens_1m_real(),
-            "timestamp_unit": "s",
-        },
-    }
+    requested = [s.strip() for s in args.datasets.split(",") if s.strip()]
+    unknown = [s for s in requested if s not in RAW_SOURCES]
+    if unknown:
+        raise SystemExit(
+            f"Unknown dataset(s): {unknown}. Choices: {', '.join(RAW_SOURCES)}"
+        )
+    datasets = {}
+    for slug in requested:
+        loader, unit = RAW_SOURCES[slug]
+        datasets[slug] = {"data": loader(), "timestamp_unit": unit}
 
-    benchmark_variants = {
-        "amazon_beauty_benchmark_0core_timestamp": load_amazon_category_benchmark(
-            "All_Beauty",
-            core="0core",
-            split="timestamp",
-        ),
-        "amazon_beauty_benchmark_5core_timestamp": load_amazon_category_benchmark(
-            "All_Beauty",
-            core="5core",
-            split="timestamp",
-        ),
-    }
+    benchmark_variants = {}
+    if args.benchmark_category:
+        cat = args.benchmark_category
+        benchmark_variants = {
+            f"{cat.lower()}_benchmark_0core_timestamp": load_amazon_category_benchmark(
+                cat, core="0core", split="timestamp",
+            ),
+            f"{cat.lower()}_benchmark_5core_timestamp": load_amazon_category_benchmark(
+                cat, core="5core", split="timestamp",
+            ),
+        }
 
     dataset_rows = []
     kcore_rows = []
@@ -80,7 +102,7 @@ def main():
     benchmark_stats.to_csv(tables_dir / "amazon_benchmark_comparison.csv", index=False)
 
     data_choice = (
-        "Amazon All Beauty raw is the preferred source for the main modelling pipeline after M3 "
+        "Amazon Video Games raw is the preferred source for the main modelling pipeline after M3 "
         "filtering because it preserves the full local dataset before rating-threshold and k-core "
         "choices. The bundled 5-core benchmark is useful for smoke tests and reference-aligned "
         "experiments, but it is very small compared with raw/0-core data. MovieLens uses the local "

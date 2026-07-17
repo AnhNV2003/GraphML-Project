@@ -84,8 +84,8 @@ def quantile_timestamp_cutoffs(
 ) -> tuple[float, float]:
     """Pick (t1, t2) so a dataset's OWN timestamp distribution splits into the
     same train/valid/test proportions as Amazon Reviews 2023's official
-    'timestamp' split (0core All_Beauty: 84.05% / 10.34% / 5.61%), so the split
-    style is comparable across datasets with very different absolute time ranges
+    'timestamp' split (84.05% / 10.34% / 5.61%), so the split style is
+    comparable across datasets with very different absolute time ranges
     (e.g. Amazon ms-epoch up to 2023 vs MovieLens-1M s-epoch from 2000-2003).
     """
     ts = data["timestamp"].sort_values().to_numpy()

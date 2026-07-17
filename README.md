@@ -14,7 +14,6 @@ assets/
   data/                   # Dataset local (Amazon Reviews 2023, MovieLens 1M)
   external_repos/         # 6 repo gốc vendor (tham chiếu để verify tính trung thành của port)
   papers/                 # PDF tham khảo
-  smoke_tests/            # Output CSV của các lần smoke-test cũ
 results/                  # CSV/figures/tables — output của train.sh/test.sh
 plan/                     # Tài liệu kế hoạch M1-M8
 train.sh, test.sh         # Script train + tổng hợp báo cáo
@@ -78,7 +77,6 @@ Dataset thật đọc từ `assets/data/`:
 
 - **Amazon Reviews 2023**: `assets/data/amazon_reviews_2023/raw/review_categories/<Category>.jsonl`. Tải bằng:
   ```bash
-  python install_dataset_huggingface.py --category All_Beauty
   python install_dataset_huggingface.py --category Video_Games
   ```
   (script tự giữ lại category đã tải trước đó, không ghi đè khi tải category mới)
@@ -100,7 +98,7 @@ bash train.sh e1            # chỉ E1 (layer sweep)
 
 # Tùy biến qua biến môi trường:
 MODELS="LightGCN,NGCF" bash train.sh e0
-DATASET_MAIN=amazon_beauty bash train.sh e0
+DATASET_MAIN=amazon_video_games bash train.sh e0
 SEEDS=42 EPOCHS_MAIN=20 bash train.sh e0
 ```
 

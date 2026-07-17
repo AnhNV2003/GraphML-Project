@@ -11,7 +11,7 @@ import numpy as np
 import torch
 
 SEED = 42
-PRIMARY_DATASET = "amazon_beauty"
+PRIMARY_DATASET = "movielens_1m"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ASSETS_ROOT = PROJECT_ROOT / "assets"
 DATA_ROOT = ASSETS_ROOT / "data"

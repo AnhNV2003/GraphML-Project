@@ -1,7 +1,7 @@
 """E4: edge-construction (weighting) study — binary / rating / time.
 
 Usage:
-  python -m experiments.exp_edges --dataset amazon_beauty --edge-modes binary,rating,time
+  python -m experiments.exp_edges --dataset amazon_video_games --edge-modes binary,rating,time
   python -m experiments.exp_edges --models LightGCN,Sheaf4Rec-official
 """
 

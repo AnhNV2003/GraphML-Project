@@ -48,7 +48,7 @@ def git_commit() -> str:
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("--dataset", default="amazon_beauty", help="Comma-separated dataset names.")
+    parser.add_argument("--dataset", default="movielens_1m", help="Comma-separated dataset names.")
     parser.add_argument("--seeds", default="42", help="Comma-separated seeds.")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--patience", type=int, default=None)

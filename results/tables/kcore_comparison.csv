@@ -1,5 +1,5 @@
 dataset,stage,min_interactions,n_users,n_items,n_interactions,sparsity
-amazon_beauty_raw,before_kcore,2,631986,112565,701528,0.9999901386998831
-amazon_beauty_raw,after_kcore,2,23137,12625,58148,0.999800934339879
-movielens_1m,before_kcore,2,6040,3706,1000209,0.9553163743776871
-movielens_1m,after_kcore,2,6040,3592,1000095,0.9539034959955162
+amazon_video_games_raw,before_kcore,5,2766656,137249,4624615,0.999987821011192
+amazon_video_games_raw,after_kcore,5,95007,25838,816455,0.9996674034390024
+movielens_1m,before_kcore,5,6040,3706,1000209,0.9553163743776871
+movielens_1m,after_kcore,5,6040,3416,999611,0.9515519584503

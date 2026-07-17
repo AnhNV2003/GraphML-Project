@@ -88,6 +88,15 @@ def build_model_comparison():
         print("[build_model_comparison] Recall@10/NDCG@10 columns missing, skipping.")
         return
 
+    # Keep only the best row per (dataset, model): a model can appear in several
+    # source CSVs (e.g. DirectAU/NCL in both main + sota) or across raw seeds
+    # (MF/MF+TAG-CF). Rank by NDCG@10 and drop duplicates so each model shows once.
+    combined = (
+        combined.sort_values(ndcg_col, ascending=False)
+        .drop_duplicates(subset=["dataset", "model"], keep="first")
+        .reset_index(drop=True)
+    )
+
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     report_sections = ["# Model Comparison (M8)\n\n_Global timestamp split (Amazon Reviews 2023 benchmark style); full-catalog ranking._\n"]

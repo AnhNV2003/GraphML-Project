@@ -80,10 +80,6 @@ def load_amazon_category_real(
     raise ValueError(f"Unknown Amazon source: {source!r}. Expected 'raw' or 'benchmark'.")
 
 
-def load_amazon_beauty_real(**kwargs) -> pd.DataFrame:
-    return load_amazon_category_real("All_Beauty", **kwargs)
-
-
 def load_amazon_video_games_real(**kwargs) -> pd.DataFrame:
     return load_amazon_category_real("Video_Games", **kwargs)
 
@@ -129,14 +125,6 @@ def load_movielens_1m_real(data_root: Path = DATA_ROOT) -> pd.DataFrame:
 
 
 DATASET_REGISTRY: dict[str, dict[str, str | Callable[[], pd.DataFrame]]] = {
-    "amazon_beauty": {
-        "display_name": "Amazon Beauty (All Beauty)",
-        "loader": load_amazon_beauty_real,
-        "source": "raw",
-        "benchmark_dir": amazon_benchmark_dir(),
-        "benchmark_core": "5core",
-        "benchmark_split": "timestamp",
-    },
     "amazon_video_games": {
         "display_name": "Amazon Video Games",
         "loader": load_amazon_video_games_real,

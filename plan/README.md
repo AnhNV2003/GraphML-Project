@@ -16,7 +16,7 @@ phải nhật ký lịch sử. Dự án đã trải qua vài lần đổi hướ
 
 | Phase | File | Nội dung |
 |---|---|---|
-| M1 | [M1_problem_and_data.md](M1_problem_and_data.md) | Problem framing + 3 dataset (Amazon Beauty, Amazon Video Games, MovieLens 1M) |
+| M1 | [M1_problem_and_data.md](M1_problem_and_data.md) | Problem framing + 2 dataset (Amazon Video Games, MovieLens 1M) |
 | M2 | [M2_eda.md](M2_eda.md) | EDA trên real data, biện minh k-core/ngưỡng rating |
 | M3 | [M3_preprocessing.md](M3_preprocessing.md) | Dedup, k-core (k=5), ngưỡng `rating≥4`, **global timestamp split** |
 | M4 | [M4_graph_construction.md](M4_graph_construction.md) | Bipartite graph: binary / rating-aware / time-aware edges |
@@ -52,8 +52,7 @@ không tự ý đơn giản hóa kiến trúc — xem M5 cho chi tiết verify t
 
 | Dataset | Vai trò | Nguồn local |
 |---|---|---|
-| Amazon Beauty (All Beauty) | Chính | `assets/data/amazon_reviews_2023/raw/review_categories/All_Beauty.jsonl` |
-| Amazon Video Games | Phụ (dataset đậm đặc hơn) | `assets/data/amazon_reviews_2023/raw/review_categories/Video_Games.jsonl` |
+| Amazon Video Games | Chính | `assets/data/amazon_reviews_2023/raw/review_categories/Video_Games.jsonl` |
 | MovieLens 1M | Phụ | `assets/data/datamovielens-1m/ratings.dat` |
 
 Tải Amazon category bằng `python install_dataset_huggingface.py --category <Tên>`
@@ -75,7 +74,7 @@ Amazon Reviews 2023): một cặp cutoff `(t1, t2)` áp dụng cho toàn dataset
 1. Chạy trên **real data local** (không còn synthetic fallback — thiếu data thì báo lỗi
    thẳng thay vì âm thầm sinh số liệu giả).
 2. Bảng so sánh chính: **5 model chuẩn** (LightGCN, NGCF, Sheaf4Rec-official, NCL, DirectAU)
-   trên Amazon Beauty + MovieLens 1M.
+   trên Amazon Video Games + MovieLens 1M.
 3. Đủ metric: Recall/Precision/NDCG/HitRatio/F1/MRR @10/@20, + train & inference time;
    số chính là Recall@10, NDCG@10.
 4. Đủ 4 phân tích ablation: layer sweep (E1), dim sweep (E2), Sheaf4Rec expressiveness (E3),
@@ -100,7 +99,7 @@ M1 → M2 → M3 → M4 → M5 ┐
 | k-core | `MIN_INTERACTIONS=2` | `MIN_INTERACTIONS=5` | Lọc mạnh hơn, giảm nhiễu từ user/item quá thưa |
 | Sheaf4Rec | 1 bản tự viết (`sheaf.py`, 3 biến thể restriction) | Thêm bản port trung thành `sheaf_official.py` (`Sheaf4Rec-official`) dùng cho bảng chính; bản tự viết (`Sheaf4Rec-full_sheaf` etc.) chỉ dùng cho E3 | Đảm bảo số liệu bảng chính khớp kiến trúc gốc trong paper |
 | Model phụ | — | Thêm NCL/DirectAU/SGL/SimGCL/LightGCL (port từ SELFRec), TAG-CF, PureMF | Mở rộng phạm vi so sánh SOTA |
-| Cấu trúc thư mục | `data/`, 6 repo gốc rải ở root | `assets/{data,external_repos,papers,smoke_tests}/` | Tổ chức lại cho dễ tái sử dụng/reproduce |
+| Cấu trúc thư mục | `data/`, 6 repo gốc rải ở root | `assets/{data,external_repos,papers}/` | Tổ chức lại cho dễ tái sử dụng/reproduce |
 | Đóng gói | — | `Dockerfile` (PyTorch+CUDA 12.8), `docker-compose.yml` | Tái sử dụng môi trường dễ dàng |
 | Script train | `run_pipeline.py`, `experiments/run_all.sh` | `train.sh` + `test.sh` (build bảng/biểu đồ cuối) | Gộp thành 1 entry point rõ ràng, có tag chọn model/kịch bản |
 | Dữ liệu thiếu | Tự sinh synthetic (Zipf long-tail), gắn cờ `is_real_data` | Ném `FileNotFoundError` thẳng | Synthetic từng gây crash âm thầm khi trộn đơn vị timestamp; lỗi rõ ràng tốt hơn số liệu giả |

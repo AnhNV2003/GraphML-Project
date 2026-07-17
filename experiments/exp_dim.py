@@ -4,7 +4,7 @@ For Sheaf4Rec-official, also sweeps its stalk dimension (sheaf_stalk_dim)
 separately, since that is an architecture-specific knob on top of latent_dim.
 
 Usage:
-  python -m experiments.exp_dim --dataset amazon_beauty --latent-dims 16,32,64,128
+  python -m experiments.exp_dim --dataset amazon_video_games --latent-dims 16,32,64,128
   python -m experiments.exp_dim --models LightGCN,NGCF --sheaf-dims ""   # skip sheaf-dim sweep
 """
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full training script — 5 canonical graph models on Amazon Beauty + MovieLens 1M.
+# Full training script — 5 canonical graph models on Amazon Video Games + MovieLens 1M.
 #
 # Models  : LightGCN (SIGIR'20), NGCF (SIGIR'19), Sheaf4Rec-official (ACM TORS'23/25),
 #           NCL (WWW'22), DirectAU (KDD'22)  -- see plan/README.md for full citations.
@@ -15,9 +15,10 @@
 #   bash train.sh sota                # only the 5 SOTA self-supervised models
 #   bash train.sh tagcf               # only MF + TAG-CF
 #   bash train.sh puremf              # only PureMF baseline
+#   bash train.sh popularity          # only Popularity baseline (non-personalized)
 #
 #   MODELS="LightGCN,NGCF" bash train.sh e0     # restrict E0 to a subset of models
-#   DATASET_MAIN=amazon_beauty bash train.sh e0 # restrict to one dataset
+#   DATASET_MAIN=amazon_video_games bash train.sh e0 # restrict to one dataset
 #
 # GPU: automatically used when CUDA is available (configured in gnn_recommendation/config.py)
 # Logs: written to results/logs/
@@ -28,8 +29,8 @@ PYTHON="${PYTHON:-venv/bin/python}"
 TARGET="${1:-all}"
 
 # ── Dataset & reproducibility ────────────────────────────────────────────────
-DATASET_MAIN="${DATASET_MAIN:-amazon_beauty,movielens_1m}"   # E0, SOTA, TAG-CF, PureMF: both datasets
-DATASET_SWEEP="${DATASET_SWEEP:-amazon_beauty}"              # E1-E4: Amazon only (faster iteration)
+DATASET_MAIN="${DATASET_MAIN:-amazon_video_games,movielens_1m}"   # E0, SOTA, TAG-CF, PureMF: both datasets
+DATASET_SWEEP="${DATASET_SWEEP:-amazon_video_games}"              # E1-E4: Amazon only (faster iteration)
 SEEDS="${SEEDS:-42,43,44}"
 
 # ── 5 canonical graph models (override with MODELS="A,B" to restrict) ───────
@@ -144,6 +145,16 @@ run_puremf() {
         --output  results/puremf_comparison.csv
 }
 
+# ── Popularity: non-personalized top-popular-item baseline (no training) ──────
+run_popularity() {
+    run "popularity_full" -m experiments.exp_popularity \
+        --dataset "$DATASET_MAIN" \
+        --seeds   "$SEEDS" \
+        --epochs  "$EPOCHS_MAIN" \
+        --patience "$PATIENCE" \
+        --output  results/popularity_comparison.csv
+}
+
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 case "$TARGET" in
     e0) run_e0 ;;
@@ -154,6 +165,7 @@ case "$TARGET" in
     sota) run_sota ;;
     tagcf) run_tagcf ;;
     puremf) run_puremf ;;
+    popularity) run_popularity ;;
     all)
         run_e0
         run_e1
@@ -163,6 +175,7 @@ case "$TARGET" in
         run_sota
         run_tagcf
         run_puremf
+        run_popularity
         echo ""
         echo "================================================================"
         echo "  All training complete. Results in results/"
@@ -171,7 +184,7 @@ case "$TARGET" in
         ;;
     *)
         echo "Unknown target: $TARGET"
-        echo "Usage: bash train.sh [all|e0|e1|e2|e3|e4|sota|tagcf|puremf]"
+        echo "Usage: bash train.sh [all|e0|e1|e2|e3|e4|sota|tagcf|puremf|popularity]"
         exit 1
         ;;
 esac

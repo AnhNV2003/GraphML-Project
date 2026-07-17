@@ -4,7 +4,7 @@ PureMF is imported directly from the official gusye1234/LightGCN-PyTorch repo
 (no reimplementation) via `include_auxiliary=True` in build_all_models.
 
 Usage:
-  python -m experiments.exp_puremf --dataset amazon_beauty,movielens_1m
+  python -m experiments.exp_puremf --dataset amazon_video_games,movielens_1m
 """
 
 import argparse

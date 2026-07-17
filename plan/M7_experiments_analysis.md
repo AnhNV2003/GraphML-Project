@@ -37,7 +37,7 @@ với Sheaf4Rec (LightGCN/NGCF/NCL/DirectAU không có khái niệm restriction 
 
 ## E0 — Bảng so sánh chính
 
-- Dataset: Amazon Beauty + MovieLens 1M (mặc định `DATASET_MAIN` trong `train.sh`).
+- Dataset: Amazon Video Games + MovieLens 1M (mặc định `DATASET_MAIN` trong `train.sh`).
 - Models: `FIVE_MODELS` (LightGCN, NGCF, Sheaf4Rec-official, NCL, DirectAU).
 - Metric: full `METRIC_COLUMNS` + train/infer time, mean±std trên 3 seed.
 - Output: `results/main_comparison.csv` (+ `_raw.csv` per-seed).
@@ -87,7 +87,8 @@ với Sheaf4Rec (LightGCN/NGCF/NCL/DirectAU không có khái niệm restriction 
 ## Tái lập
 
 - Mọi `exp_*.py` dùng `argparse` qua `add_common_args` (`--dataset`, `--seeds`, `--epochs`,
-  `--patience`, `--models` nếu áp dụng), mặc định Amazon Beauty.
+  `--patience`, `--models` nếu áp dụng), mặc định MovieLens 1M (`PRIMARY_DATASET`
+  trong `config.py`); `train.sh` override sang Amazon Video Games qua `DATASET_MAIN`.
 - CSV kèm cột config (`dataset`, `model`, `seed`, các cột config đặc thù như `n_layers`,
   `latent_dim`, `sheaf_stalk_dim`, `edge_mode`, `epochs`) + `git_commit`.
 - `--quick`: override 1-2 epoch, 1 seed — dùng để smoke-test toàn bộ script trước khi

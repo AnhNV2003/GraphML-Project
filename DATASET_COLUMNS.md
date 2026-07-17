@@ -2,7 +2,7 @@
 
 Project hiện dùng dữ liệu local trong `assets/data/` cho 2 dataset:
 
-- `amazon_beauty`: Amazon Reviews 2023, category All Beauty.
+- `amazon_video_games`: Amazon Reviews 2023, category Video Games.
 - `movielens_1m`: MovieLens 1M.
 
 Pipeline chuẩn hoá cả 2 dataset về schema interaction tối thiểu:
@@ -17,9 +17,9 @@ Sau preprocessing, pipeline thêm:
 u_idx, i_idx
 ```
 
-## 1. Amazon Beauty
+## 1. Amazon Video Games
 
-Loader chính: `load_amazon_beauty_real()` trong `gnn_recommendation/data.py`.
+Loader chính: `load_amazon_video_games_real()` trong `gnn_recommendation/data.py`.
 
 Nguồn local:
 
@@ -32,9 +32,9 @@ Mặc định hiện tại của project sau M2 là `source="raw"` để giữ d
 Benchmark `source="benchmark"`, `core="5core"`, `split="timestamp"` đọc:
 
 ```text
-assets/data/amazon_reviews_2023/benchmark/5core/timestamp/All_Beauty.train.csv
-assets/data/amazon_reviews_2023/benchmark/5core/timestamp/All_Beauty.valid.csv
-assets/data/amazon_reviews_2023/benchmark/5core/timestamp/All_Beauty.test.csv
+assets/data/amazon_reviews_2023/benchmark/5core/timestamp/Video_Games.train.csv
+assets/data/amazon_reviews_2023/benchmark/5core/timestamp/Video_Games.valid.csv
+assets/data/amazon_reviews_2023/benchmark/5core/timestamp/Video_Games.test.csv
 ```
 
 ### 1.1 Amazon benchmark files
@@ -70,7 +70,7 @@ benchmark/{0core,5core}/{last_out,last_out_w_his,timestamp,timestamp_w_his}/
 Ngoài ra có:
 
 ```text
-benchmark/{0core,5core}/rating_only/All_Beauty.csv
+benchmark/{0core,5core}/rating_only/Video_Games.csv
 ```
 
 File `rating_only` có cùng cột cơ bản `user_id,parent_asin,rating,timestamp`, nhưng không phải split train/valid/test.
@@ -80,7 +80,7 @@ File `rating_only` có cùng cột cơ bản `user_id,parent_asin,rating,timesta
 Raw review file:
 
 ```text
-assets/data/amazon_reviews_2023/raw/review_categories/All_Beauty.jsonl
+assets/data/amazon_reviews_2023/raw/review_categories/Video_Games.jsonl
 ```
 
 Mỗi dòng là một JSON review. Mẫu đầu cho thấy các cột:
@@ -103,7 +103,7 @@ Mỗi dòng là một JSON review. Mẫu đầu cho thấy các cột:
 Metadata local:
 
 ```text
-assets/data/amazon_reviews_2023/raw/meta_categories/meta_All_Beauty.jsonl
+assets/data/amazon_reviews_2023/raw/meta_categories/meta_Video_Games.jsonl
 ```
 
 Pipeline hiện chưa dùng file này, nhưng có thể dùng ở phase sau để thêm side information.
@@ -112,7 +112,7 @@ Các cột thấy trong mẫu đầu:
 
 | Cột metadata | Kiểu dự kiến | Mô tả |
 |---|---:|---|
-| `main_category` | string | Category chính, ví dụ `All Beauty`. |
+| `main_category` | string | Category chính, ví dụ `Video Games`. |
 | `title` | string | Tên sản phẩm. |
 | `average_rating` | float | Rating trung bình của sản phẩm. |
 | `rating_number` | int | Số lượng rating/review. |
@@ -210,7 +210,7 @@ Pipeline hiện chưa dùng file này.
 
 ## 3. Cột sinh ra sau preprocessing
 
-Sau khi loader trả schema tối thiểu, `preprocess()` mặc định giữ implicit positive feedback `rating >= 4.0`, chạy k-core với `MIN_INTERACTIONS=2`, rồi sinh thêm:
+Sau khi loader trả schema tối thiểu, `preprocess()` mặc định giữ implicit positive feedback `rating >= 4.0`, chạy k-core với `MIN_INTERACTIONS=5`, rồi sinh thêm:
 
 | Cột | Kiểu | Mô tả | Ghi chú |
 |---|---:|---|---|
@@ -223,9 +223,9 @@ Các cột trên được chuyển thành những cấu trúc sau để train/ev
 
 | Tên | Kiểu | Mô tả |
 |---|---:|---|
-| `train_pairs` | `list[tuple[int, int]]` | Danh sách cặp `(u_idx, i_idx)` dùng để train. |
-| `valid_pairs` | `list[tuple[int, int]]` | Danh sách validation pairs; chỉ user có ít nhất 3 interaction sau lọc mới có validation item. |
-| `test_pairs` | `list[tuple[int, int]]` | Danh sách cặp `(u_idx, i_idx)` dùng để test, mỗi user có 1 item test theo leave-one-out hiện tại của pipeline. |
+| `train_pairs` | `list[tuple[int, int]]` | Danh sách cặp `(u_idx, i_idx)` có timestamp `< t1` (global timestamp split). |
+| `valid_pairs` | `list[tuple[int, int]]` | Danh sách cặp có timestamp `t1 ≤ t < t2`. |
+| `test_pairs` | `list[tuple[int, int]]` | Danh sách cặp có timestamp `≥ t2`. Một user có thể có 0 hoặc nhiều test pairs (không phải leave-one-out) — xem `results/COLD_START_ANALYSIS.md` về cold-start do split này. |
 | `Graph` | `torch.sparse_coo_tensor` | Ma trận kề bipartite user-item đã symmetric hoá và normalized. |
 | `allPos` | `list[np.ndarray]` | Với mỗi user index, chứa các item index đã xuất hiện trong train. Dùng để negative sampling và loại item train khi evaluate. |
 | `validDict` | `dict[int, list[int]]` | Mapping user index sang item validation, phục vụ model selection ở phase sau. |

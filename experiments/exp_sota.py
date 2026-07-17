@@ -5,7 +5,7 @@ Models (see gnn_recommendation/ssl_models.py for faithful-port details + sources
   SGL (SIGIR'21), SimGCL (SIGIR'22), DirectAU (KDD'22), NCL (WWW'22), LightGCL (ICLR'23)
 
 Usage:
-  python -m experiments.exp_sota --dataset amazon_beauty,movielens_1m --seeds 42 --epochs 100 --patience 10
+  python -m experiments.exp_sota --dataset amazon_video_games,movielens_1m --seeds 42 --epochs 100 --patience 10
 """
 
 import argparse

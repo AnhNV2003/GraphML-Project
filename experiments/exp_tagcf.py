@@ -10,7 +10,7 @@ Uses our data split + evaluate_official (train+valid masking) so numbers line up
 with the E0 comparison.
 
 Usage:
-  python -m experiments.exp_tagcf --dataset amazon_beauty,movielens_1m --seeds 42 --epochs 150 --patience 15
+  python -m experiments.exp_tagcf --dataset amazon_video_games,movielens_1m --seeds 42 --epochs 150 --patience 15
 """
 
 import argparse

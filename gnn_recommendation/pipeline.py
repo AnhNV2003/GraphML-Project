@@ -17,20 +17,6 @@ from .training import METRIC_COLUMNS, evaluate_official, train_bpr_model
 
 _PREPARED_DATASET_CACHE = {}
 
-# Amazon Reviews 2023's own official "timestamp" benchmark split cutoffs (ms epoch),
-# reverse-engineered from data/amazon_reviews_2023/benchmark/0core/timestamp/*.csv
-# (train max ts=1628643321568, valid range=[1628643415648, 1658002676817], test
-# min ts=1658002770869) -- matches the paper's documented t1/t2 exactly.
-#
-# Unit warning: these are hardcoded ms-epoch, valid ONLY for Amazon datasets.
-# Any other dataset goes through quantile_timestamp_cutoffs() below instead,
-# which derives t1/t2 from that dataset's own timestamp column (whatever unit
-# it uses -- e.g. MovieLens ratings.dat is s-epoch). Nothing here asserts unit
-# consistency; adding a new Amazon-like dataset with ms timestamps must NOT
-# reuse these two constants directly.
-AMAZON_GLOBAL_TS_T1 = 1628643414042
-AMAZON_GLOBAL_TS_T2 = 1658002729837
-
 
 def prepare_dataset(
     dataset_name,
@@ -51,10 +37,7 @@ def prepare_dataset(
     )
     print(f"[{dataset_name}] Filtered: {n_users} users, {n_items} items, {len(data_filtered)} interactions")
 
-    if dataset_name == "amazon_beauty":
-        t1, t2 = AMAZON_GLOBAL_TS_T1, AMAZON_GLOBAL_TS_T2
-    else:
-        t1, t2 = quantile_timestamp_cutoffs(data_filtered)
+    t1, t2 = quantile_timestamp_cutoffs(data_filtered)
     print(f"[{dataset_name}] Global timestamp split: t1={t1:.0f}, t2={t2:.0f}")
     train_df, valid_pairs, test_pairs = global_timestamp_split(data_filtered, t1, t2)
     train_df_for_graph = train_df.drop_duplicates(subset=["u_idx", "i_idx"], keep="last").reset_index(drop=True)

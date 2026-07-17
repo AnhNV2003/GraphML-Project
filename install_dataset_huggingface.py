@@ -11,8 +11,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Download an Amazon Reviews 2023 category from Hugging Face.")
     parser.add_argument(
         "--category",
-        default="All_Beauty",
-        help="Category name as used in the dataset's file names, e.g. All_Beauty, Video_Games, Movies_and_TV.",
+        default="Video_Games",
+        help="Category name as used in the dataset's file names, e.g. Video_Games, Movies_and_TV.",
     )
     return parser.parse_args()
 
@@ -22,8 +22,8 @@ def _already_downloaded_categories(output_dir: Path) -> set[str]:
 
     `snapshot_download(local_dir=...)` treats local_dir as a full mirror of
     `allow_patterns` and DELETES any local file that no longer matches on each
-    call. Without this, downloading a second category (e.g. Video_Games) would
-    silently remove a previously downloaded one (e.g. All_Beauty).
+    call. Without this, downloading a second category would silently remove a
+    previously downloaded one.
     """
     raw_dir = output_dir / "raw" / "review_categories"
     if not raw_dir.exists():

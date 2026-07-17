@@ -31,8 +31,8 @@ for _ in range(max_iter):
 
 Cấu hình tại `gnn_recommendation/config.py:MIN_INTERACTIONS`. Giá trị này **đã tăng từ 2
 lên 5** so với giai đoạn đầu dự án — lọc mạnh hơn để mỗi user/item còn lại có đủ tín hiệu
-tương tác, đánh đổi lấy kích thước dataset nhỏ hơn (đặc biệt rõ trên Amazon Beauty vốn đã
-rất thưa — xem số liệu k-core trong `results/tables/kcore_comparison.csv`, sinh từ M2).
+tương tác, đánh đổi lấy kích thước dataset nhỏ hơn (đặc biệt rõ trên Amazon Video Games vốn
+rất thưa ở raw — xem số liệu k-core trong `results/tables/kcore_comparison.csv`, sinh từ M2).
 
 ## 3.3 Split: **global timestamp split** (đường chính, duy nhất)
 
@@ -61,19 +61,16 @@ NDCG@10 thấp hơn valid** ở mọi model (test set có tỷ lệ cold-start c
 
 ### Xác định `(t1, t2)` cho từng dataset
 
-- **`amazon_beauty`**: dùng `AMAZON_GLOBAL_TS_T1`/`AMAZON_GLOBAL_TS_T2`
-  (`gnn_recommendation/pipeline.py`) — hằng số **ms-epoch** reverse-engineer trực tiếp từ
-  file benchmark gốc `assets/data/amazon_reviews_2023/benchmark/0core/timestamp/*.csv`,
-  khớp chính xác cutoff chính thức của Amazon Reviews 2023.
-- **Mọi dataset khác** (`amazon_video_games`, `movielens_1m`, ...): dùng
-  `quantile_timestamp_cutoffs(data)` — tự suy `(t1, t2)` từ phân vị (84.05% / 10.34% /
-  5.61%, đúng tỷ lệ train/valid/test của benchmark gốc) trên timestamp của chính dataset
-  đó, để tỷ lệ split nhất quán dù đơn vị/khoảng thời gian tuyệt đối khác nhau.
+Mọi dataset (`amazon_video_games`, `movielens_1m`, ...) dùng chung
+`quantile_timestamp_cutoffs(data)` (`gnn_recommendation/preprocessing.py`) — tự suy
+`(t1, t2)` từ phân vị (84.05% / 10.34% / 5.61%, đúng tỷ lệ train/valid/test của benchmark
+chính thức Amazon Reviews 2023) trên timestamp của chính dataset đó, để tỷ lệ split nhất
+quán dù đơn vị/khoảng thời gian tuyệt đối khác nhau (Amazon ms-epoch vs MovieLens s-epoch).
 
-> **Cảnh báo đơn vị timestamp**: `AMAZON_GLOBAL_TS_T1/T2` là hằng số **ms-epoch**, chỉ
-> đúng cho Amazon. Không được tái sử dụng trực tiếp cho dataset khác dù cùng họ Amazon —
-> mỗi dataset mới nên tự tính qua `quantile_timestamp_cutoffs`, trừ khi đã verify đơn vị
-> timestamp khớp chính xác với Amazon Beauty gốc.
+> **Lịch sử**: dự án từng có một dataset dùng cặp hằng số ms-epoch hard-code riêng thay vì
+> `quantile_timestamp_cutoffs`. Cả dataset đó lẫn 2 hằng số này đã bị **xóa hoàn toàn khỏi
+> code** — giờ mọi dataset đều đi qua đúng 1 đường `quantile_timestamp_cutoffs`, không còn
+> nhánh đặc biệt nào theo tên dataset trong `prepare_dataset()`.
 
 ### `GraphRecDataset`
 
@@ -86,6 +83,6 @@ stopping (M6) mà không cần sửa `BasicDataset` gốc của LightGCN-PyTorch
 - [x] `positive_threshold` (mặc định 4.0, cho phép None).
 - [x] K-core lặp, `MIN_INTERACTIONS=5`.
 - [x] `global_timestamp_split` — đường chính, duy nhất (LOO đã xóa khỏi code).
-- [x] `quantile_timestamp_cutoffs` cho dataset không có cutoff chính thức hard-code.
+- [x] `quantile_timestamp_cutoffs` dùng chung cho mọi dataset (không còn nhánh hard-code).
 - [x] Train giữ `rating`/`timestamp` cho M4 (edge weighting).
 - [x] `GraphRecDataset`: `validDict` song song `testDict`.

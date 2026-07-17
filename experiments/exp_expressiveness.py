@@ -9,7 +9,7 @@ and does not apply to LightGCN/NGCF/NCL/DirectAU, so this experiment is scoped
 to Sheaf4Rec variants only (no --models tag).
 
 Usage:
-  python -m experiments.exp_expressiveness --dataset amazon_beauty --seeds 42,43,44 --epochs 50 --patience 10
+  python -m experiments.exp_expressiveness --dataset amazon_video_games --seeds 42,43,44 --epochs 50 --patience 10
 """
 
 import argparse
